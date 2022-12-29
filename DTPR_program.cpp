@@ -30,12 +30,18 @@ int main(int argc, char** argv)
     // попытка парсинга аргументов программы !!! нужно добавить дополнительные проверки и ограничения для агрументов
     string fPathIn = argv[1];
     string fPathOut = argv[2];
-    string fPathText = argv[3];
+    string fPathNetCfg = argv[3];
+    string fPathNetWeights = argv[4];
+    bool separateNetFiles = true;
     int size_min = 15;
-    int size_max = 100;
+    int previousFramesCount = 6;
+    int extraFramesCount = 6;
     try {
-        size_min = stoi(argv[4]);
-        size_max = stoi(argv[5]);
+        if (stoi(argv[5]) > 0) separateNetFiles = true;
+        else separateNetFiles = false;
+        size_min = stoi(argv[6]);
+        previousFramesCount = stoi(argv[7]);
+        extraFramesCount = stoi(argv[8]);
     }
     catch (std::exception const& e) {
         // This could not be parsed into a number so an exception is thrown.
@@ -52,7 +58,7 @@ int main(int argc, char** argv)
     }
 
     // создание экземпляра класса
-    INeuralNetwork new_Network("yolov4.cfg", "yolov4.weights", true, 6, 6, size_min);
+    INeuralNetwork new_Network(fPathNetCfg, fPathNetWeights, separateNetFiles, previousFramesCount, extraFramesCount, size_min);
 
     while (true) {
         Mat frame;

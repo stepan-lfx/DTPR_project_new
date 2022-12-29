@@ -17,7 +17,7 @@
 
 #include <vector>
 
-// параметры запуска нейронной сети, !!! можно вынести как внешние
+// параметры запуска нейронной сети !!! число классов и порог чувствительности, могут быть внешними параметрами программы при необходимости
 const float CONFIDENCE_THRESHOLD = 0;
 const float NMS_THRESHOLD = 0.4;
 const int NUM_CLASSES = 80;
@@ -55,7 +55,7 @@ public:
     // colors for bounding boxes !!! сейчас работает внутри класса, можно это вынести
     std::vector<cv::Scalar> colors;
 
-    const int NUM_COLORS = 4;//sizeof(colors) / sizeof(colors[0]);
+    const int NUM_COLORS = 4; // большего числа цветов пока не нужно, сами цвета тоже условные
 
     struct RecognitionResult
     {
@@ -83,7 +83,9 @@ public:
         colors.push_back({ 0, 255, 0 });
         colors.push_back({ 255, 0, 0 });
 
-        std::ifstream class_file("classes.txt"); // файл с именами классов, !!! в дальнейшем это тоже можно вынести в настраивамые поля класса
+        std::ifstream class_file("classes.txt"); // файл с именами классов
+                                                //!!! в дальнейшем это тоже можно вынести в настраивамые поля класса 
+                                                //! (или вообще убрать, если 4 наших класса будут жестко заданы внутри программы)
         if (!class_file)
         {
             std::cerr << "failed to open classes.txt\n";
@@ -130,16 +132,18 @@ public:
         
         frame = currentFrame(ROI); // выделение части кадра с зафиксированными движущимися объектами
 
-        auto total_start = std::chrono::steady_clock::now();
+        //auto total_start = std::chrono::steady_clock::now();
         cv::dnn::blobFromImage(frame, blob, 0.00392, cv::Size(512, 512), cv::Scalar(), true, false, CV_32F); // размер blob зависит от конфигурации обученной сети и напрямую влияет на производительность,
                                                                                                             //!!! возможно нужно будет вынести в параметры
         net.setInput(blob);
 
         // часть кода для оценки времени работы нейронной сети
-        auto dnn_start = std::chrono::steady_clock::now();
+        //auto dnn_start = std::chrono::steady_clock::now();
+        
         // вызов процедуры распознавания
         net.forward(detections, output_names);
-        auto dnn_end = std::chrono::steady_clock::now();
+
+        //auto dnn_end = std::chrono::steady_clock::now();
 
         std::vector<int> indices[NUM_CLASSES];
         std::vector<cv::Rect> boxes[NUM_CLASSES];
@@ -171,55 +175,55 @@ public:
         for (int c = 0; c < NUM_CLASSES; c++)
             cv::dnn::NMSBoxes(boxes[c], scores[c], 0.0, NMS_THRESHOLD, indices[c]);
 
-        // !!! не успел доделать компенсацию множественного обнаружения, вернул код распознавания "по умолчанию", в ближайшее время этот код переделаю и оптимизирую
-        //int mostPromisingObj = std::distance(scores->begin(),std::max_element(scores->begin(), scores->end()));
-
-        //std::cout << mostPromisingObj << "\n";
+        
+        // выбор прямоугольника с наибольшим показателем точности распознавания на выбранном участке изображения
+        std::vector<float> nonZeroScores;
+        std::vector<int> nonZeroScoresIdx;
+        std::vector<int> nonZeroClass;
 
         for (int c = 0; c < NUM_CLASSES; c++)
         {
             for (size_t i = 0; i < indices[c].size(); ++i)
             {
-                const auto color = colors[c % NUM_COLORS];
 
                 auto idx = indices[c][i];
-                const auto& rect = boxes[c][idx];
 
-                // !!! временная визуализация внутри класса, пока не успел перенести во внешнюю функцию
-                cv::rectangle(currentFrame, cv::Point(rect.x + ROI.x, rect.y + ROI.y), cv::Point(rect.x + ROI.x + rect.width, rect.y + ROI.y + rect.height), color, 3);
-
-                std::ostringstream label_ss;
-                label_ss << class_names[c] << ": " << std::fixed << std::setprecision(2) << scores[c][idx];
-                auto label = label_ss.str();
-
-                int baseline;
-                auto label_bg_sz = cv::getTextSize(label.c_str(), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, 1, &baseline);
-                cv::rectangle(currentFrame, cv::Point(rect.x + ROI.x, rect.y + ROI.y - label_bg_sz.height - baseline - 10), cv::Point(rect.x + ROI.x + label_bg_sz.width, rect.y + ROI.y), color, cv::FILLED);
-                cv::putText(currentFrame, label.c_str(), cv::Point(rect.x + ROI.x, rect.y + ROI.y - baseline - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 0, 0));
-
-                TargetType currentTargetType;
-                switch (c)
-                {
-                case 4:
-                    currentTargetType = TargetType::UAVTypePlane;
-                    break;
-                case 14:
-                    currentTargetType = TargetType::Bird;
-                    break;
-                case 33:
-                    currentTargetType = TargetType::UAVTypeQuadcopter;
-                    break;
-                default:
-                    currentTargetType = TargetType::Undefined;
-                    break;
-                }
-                RecognitionResult curResult((uint)(rect.x + ROI.x), (uint)(rect.y + ROI.y), (uint)(rect.width), (uint)(rect.height), currentTargetType);
-                results.push_back(curResult);
+                nonZeroScores.push_back(scores[c][idx]);
+                nonZeroScoresIdx.push_back(idx);
+                nonZeroClass.push_back(c);
             }
         }
 
+        // если есть хотя бы один распознанный объект на изображении с достаточной точностью
+        if (nonZeroScores.size() > 0)
+        {
+            int mostPromisingObj = std::distance(nonZeroScores.begin(), std::max_element(nonZeroScores.begin(), nonZeroScores.end()));
+
+            const auto& rect = boxes[nonZeroClass[mostPromisingObj]][nonZeroScoresIdx[mostPromisingObj]];
+
+            // сохранение обнаруженного объекта и передача во внешнюю функцию
+            TargetType currentTargetType;
+            switch (nonZeroClass[mostPromisingObj])
+            {
+            case 4:
+                currentTargetType = TargetType::UAVTypePlane;
+                break;
+            case 14:
+                currentTargetType = TargetType::Bird;
+                break;
+            case 33:
+                currentTargetType = TargetType::UAVTypeQuadcopter;
+                break;
+            default:
+                currentTargetType = TargetType::Undefined;
+                break;
+            }
+            RecognitionResult curResult((uint)(rect.x + ROI.x), (uint)(rect.y + ROI.y), (uint)(rect.width), (uint)(rect.height), currentTargetType);
+            results.push_back(curResult);
+        }
+
         // часть кода для оценки времени работы нейронной сети
-        auto total_end = std::chrono::steady_clock::now();
+        /*auto total_end = std::chrono::steady_clock::now();
 
         float inference_fps = 1000.0 / std::chrono::duration_cast<std::chrono::milliseconds>(dnn_end - dnn_start).count();
         float total_fps = 1000.0 / std::chrono::duration_cast<std::chrono::milliseconds>(total_end - total_start).count();
@@ -231,7 +235,7 @@ public:
         int baseline;
         auto stats_bg_sz = cv::getTextSize(stats.c_str(), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, 1, &baseline);
         cv::rectangle(currentFrame, cv::Point(0, 0), cv::Point(stats_bg_sz.width, stats_bg_sz.height + 10), cv::Scalar(0, 0, 0), cv::FILLED);
-        cv::putText(currentFrame, stats.c_str(), cv::Point(0, stats_bg_sz.height + 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(255, 255, 255));
+        cv::putText(currentFrame, stats.c_str(), cv::Point(0, stats_bg_sz.height + 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(255, 255, 255));*/
 
         return results;
     }
@@ -281,8 +285,9 @@ public:
                 }
             }
 
-            // !!! поиск объектов пока что упрощен до одного объекта в кадре для целей тестирования, условие разделения объектов в оптическом потоке допишу в ближайшее время
-            // поиск объека в предыдущем кадре
+            // !!! поиск объектов пока что упрощен до одного объекта в кадре для целей тестирования
+            // !!! условие для раздельного сопровождения объектов в оптическом потоке допишу в ближайшее время
+            // поиск объекта в предыдущем кадре
             cv::Point2i p_left_top_corner, p_right_bottom_corner;
             sort(p0.begin(), p0.end(), [](cv::Point2f const& a, cv::Point2f const& b) { return a.x < b.x; });
 
@@ -331,29 +336,35 @@ public:
                 // запуск распознавания объектов в области интереса с помощью нейронной сети
                 resultPoints = dnn_execution(currentFrame, roi);
 
-                /*for (int i = 0; i<resultPoints.size(); i++)
+                cv::Scalar color = {0,0,0};
+
+                for (int i = 0; i<resultPoints.size(); i++)
                 {
                     cv::String caption = "";
                     switch (resultPoints[i].tType)
                     {
                     case TargetType::UAVTypePlane:
                         caption = "Plane";
+                        color = colors[0];
                         break;
                     case TargetType::Bird:
                         caption = "Bird";
+                        color = colors[1];
                         break;
                     case TargetType::UAVTypeQuadcopter:
                         caption = "Quadcopter";
+                        color = colors[2];
                         break;
                     default:
                         caption = "Undefined";
+                        color = colors[3];
                         break;
                     }
                     cv::rectangle(currentFrame, cv::Point(resultPoints[i].x, resultPoints[i].y),
                         cv::Point(resultPoints[i].x+ resultPoints[i].sizeX, resultPoints[i].y + resultPoints[i].sizeY), 
-                        cv::Scalar(255, 0, 0), 3);
+                        color, 3);
                     cv::putText(currentFrame, caption, cv::Point(resultPoints[i].x, resultPoints[i].y - 5), cv::FONT_HERSHEY_COMPLEX_SMALL, 1, cv::Scalar(0, 0, 0));
-                }*/
+                }
 
                 //rectangle(currentFrame, left_top_corner, right_bottom_corner, CV_RGB(255, 0, 0), 2, 8, 0);
 
@@ -365,6 +376,7 @@ public:
                 movPoints = 0;
             
             // пока что экстраполяция отображается прямо на кадре видео, так как в ТЗ не был прописан механизм передачи предсказываемых координат
+            //!!! или это должно добавляться в качестве поправки к самим координатам объекта?
             if (prevCoordinates.size() > prevFrameCount)
             {
                 cv::Point2f pred_point = line_interpolation(prevCoordinates, prevFrameCount, extraFrameCount);
@@ -376,12 +388,13 @@ public:
 
             p0 = good_new;
 
-            // поиск движущихся объектов в кадре перезапускается, если все движущиеся объекты будут потеряны !!! можно усложнить условие, но пока нет четкого понимания, какие условия более корректны
+            // поиск движущихся объектов в кадре перезапускается, если все движущиеся объекты будут потеряны 
+            //!!! можно усложнить условие, но пока нет четкого понимания, какие условия более корректны, еще думаю над этим
             if (movPoints < 1)
             {
                 LastFrame = currentFrame.clone();
                 cv::cvtColor(LastFrame, old_gray, cv::COLOR_BGR2GRAY);
-                goodFeaturesToTrack(old_gray, p0, 100, 0.3, 7, cv::Mat(), 3, false, 0.04); // возможно, часть этих параметров вынести в конструктор?
+                goodFeaturesToTrack(old_gray, p0, 100, 0.3, 7, cv::Mat(), 3, false, 0.04); //!!! возможно, часть этих параметров вынести в конструктор?
                 prevCoordinates.clear();
             }
         }
