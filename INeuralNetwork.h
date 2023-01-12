@@ -328,8 +328,8 @@ public:
 
                 cv::Rect roi = cv::Rect(std::max(left_top_corner.x - 100, 1),
                     std::max(left_top_corner.y - 100, 1),
-                    std::min(right_bottom_corner.x - left_top_corner.x + 200, currentFrame.size().width - left_top_corner.x - 1),
-                    std::min(right_bottom_corner.y - left_top_corner.y + 200, currentFrame.size().height - left_top_corner.y - 1));
+                    std::min(right_bottom_corner.x - left_top_corner.x + 200, currentFrame.size().width - left_top_corner.x - 101),
+                    std::min(right_bottom_corner.y - left_top_corner.y + 200, currentFrame.size().height - left_top_corner.y - 101));
 
                 std::cout << roi << "\n";
 
