@@ -326,10 +326,12 @@ public:
 
                 prevCoordinates.push_back(center_of_obj);
 
-                cv::Rect roi = cv::Rect(std::max(left_top_corner.x - 100, 1),
-                    std::max(left_top_corner.y - 100, 1),
-                    std::min(right_bottom_corner.x - left_top_corner.x + 200, currentFrame.size().width - left_top_corner.x - 101),
-                    std::min(right_bottom_corner.y - left_top_corner.y + 200, currentFrame.size().height - left_top_corner.y - 101));
+                int r_x = std::max(left_top_corner.x - 100, 1);
+                int r_y = std::max(left_top_corner.y - 100, 1);
+                int r_sx = std::min(abs(right_bottom_corner.x - left_top_corner.x) + 200, currentFrame.size().width - r_x - 1);
+                int r_sy = std::min(abs(right_bottom_corner.y - left_top_corner.y) + 200, currentFrame.size().height - r_y - 1);
+
+                cv::Rect roi = cv::Rect(r_x, r_y, r_sx, r_sy);
 
                 std::cout << roi << "\n";
 
