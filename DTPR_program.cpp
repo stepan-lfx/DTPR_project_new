@@ -33,15 +33,16 @@ int main(int argc, char** argv)
     string fPathNetCfg = argv[3];
     string fPathNetWeights = argv[4];
     bool separateNetFiles = true;
+    string fPathClasses = argv[5];
     int size_min = 15;
     int previousFramesCount = 6;
     int extraFramesCount = 6;
     try {
-        if (stoi(argv[5]) > 0) separateNetFiles = true;
+        if (stoi(argv[6]) > 0) separateNetFiles = true;
         else separateNetFiles = false;
-        size_min = stoi(argv[6]);
-        previousFramesCount = stoi(argv[7]);
-        extraFramesCount = stoi(argv[8]);
+        size_min = stoi(argv[7]);
+        previousFramesCount = stoi(argv[8]);
+        extraFramesCount = stoi(argv[9]);
     }
     catch (std::exception const& e) {
         // This could not be parsed into a number so an exception is thrown.
@@ -58,7 +59,7 @@ int main(int argc, char** argv)
     }
 
     // создание экземпляра класса
-    INeuralNetwork new_Network(fPathNetCfg, fPathNetWeights, separateNetFiles, previousFramesCount, extraFramesCount, size_min);
+    INeuralNetwork new_Network(fPathNetCfg, fPathNetWeights, separateNetFiles, fPathClasses, previousFramesCount, extraFramesCount, size_min);
 
     while (true) {
         Mat frame;

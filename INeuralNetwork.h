@@ -20,7 +20,7 @@
 // параметры запуска нейронной сети !!! число классов и порог чувствительности, могут быть внешними параметрами программы при необходимости
 const float CONFIDENCE_THRESHOLD = 0;
 const float NMS_THRESHOLD = 0.4;
-const int NUM_CLASSES = 80;
+const int NUM_CLASSES = 3;
 
 class INeuralNetwork
 {
@@ -70,7 +70,7 @@ public:
         TargetType tType{ TargetType::Undefined };
     };
 public:
-    INeuralNetwork(std::string netConfigPath, std::string netWeightsPath = "", bool isSeparateWeights = false, uint previousFCount = 6, uint extrapolationFCount = 6, uint minObjSize = 10) // конструктор класса
+    INeuralNetwork(std::string netConfigPath, std::string netWeightsPath = "", bool isSeparateWeights = false, std::string fPathClasses = "classes.txt", uint previousFCount = 6, uint extrapolationFCount = 6, uint minObjSize = 10) // конструктор класса
     {
         prevFrameCount = previousFCount; // число кадров для вычисления экстраполяции
         extraFrameCount = extrapolationFCount; // число кадров на которое проводится экстраполяция, по умолчанию - 6 (0,1 секунды при скорости кадров 60 в секунду) 
@@ -133,7 +133,7 @@ public:
         frame = currentFrame(ROI); // выделение части кадра с зафиксированными движущимися объектами
 
         //auto total_start = std::chrono::steady_clock::now();
-        cv::dnn::blobFromImage(frame, blob, 0.00392, cv::Size(512, 512), cv::Scalar(), true, false, CV_32F); // размер blob зависит от конфигурации обученной сети и напрямую влияет на производительность,
+        cv::dnn::blobFromImage(frame, blob, 0.00392, cv::Size(416, 416), cv::Scalar(), true, false, CV_32F); // размер blob зависит от конфигурации обученной сети и напрямую влияет на производительность,
                                                                                                             //!!! возможно нужно будет вынести в параметры
         net.setInput(blob);
 
@@ -205,13 +205,16 @@ public:
             TargetType currentTargetType;
             switch (nonZeroClass[mostPromisingObj])
             {
-            case 4:
+            //case 4:
+            case 2:
                 currentTargetType = TargetType::UAVTypePlane;
                 break;
-            case 14:
+            //case 14:
+            case 0:
                 currentTargetType = TargetType::Bird;
                 break;
-            case 33:
+            //case 33:
+            case 1:
                 currentTargetType = TargetType::UAVTypeQuadcopter;
                 break;
             default:
@@ -346,19 +349,19 @@ public:
                     switch (resultPoints[i].tType)
                     {
                     case TargetType::UAVTypePlane:
-                        caption = "Plane";
+                        caption = class_names[2];//"Plane";
                         color = colors[0];
                         break;
                     case TargetType::Bird:
-                        caption = "Bird";
+                        caption = class_names[0]; //"Bird";
                         color = colors[1];
                         break;
                     case TargetType::UAVTypeQuadcopter:
-                        caption = "Quadcopter";
+                        caption = class_names[1];//"Quadcopter";
                         color = colors[2];
                         break;
                     default:
-                        caption = "Undefined";
+                        caption = class_names[3];//"Undefined";
                         color = colors[3];
                         break;
                     }
