@@ -20,7 +20,7 @@
 // параметры запуска нейронной сети !!! число классов и порог чувствительности, могут быть внешними параметрами программы при необходимости
 const float CONFIDENCE_THRESHOLD = 0;
 const float NMS_THRESHOLD = 0.4;
-const int NUM_CLASSES = 3;
+const int NUM_CLASSES = 4;
 
 class INeuralNetwork
 {
